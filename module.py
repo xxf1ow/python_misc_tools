@@ -5,6 +5,7 @@ import os
 import sys
 import uuid
 import xml.etree.ElementTree as ET
+from xml.dom import minidom
 
 import numpy as np
 import PIL.Image
@@ -119,6 +120,41 @@ def parse_labelimg(det_path, img_width, img_height, overlap_check=True):
     except Exception as e:
         raise Exception(f'Failed to parse XML file: {det_path}, {e}')
     return bbox
+
+
+def create_labelimg(xml_path, image_name, width, height, bbox_dict):
+    # 创建根元素 <annotation>
+    root = ET.Element('annotation')
+    ET.SubElement(root, 'folder').text = 'imgs'
+    ET.SubElement(root, 'filename').text = image_name
+    ET.SubElement(root, 'path').text = image_name
+    source = ET.SubElement(root, 'source')
+    ET.SubElement(source, 'database').text = 'Unknown'
+    size = ET.SubElement(root, 'size')
+    ET.SubElement(size, 'width').text = str(width)
+    ET.SubElement(size, 'height').text = str(height)
+    ET.SubElement(size, 'depth').text = '3'  # 假设为彩色图像
+    ET.SubElement(root, 'segmented').text = '0'
+    # 从 bbox_dict 添加 <object> 元素
+    for instance, box in bbox_dict.items():
+        label = instance[0]
+        xmin, ymin, xmax, ymax = box
+        obj = ET.SubElement(root, 'object')
+        ET.SubElement(obj, 'name').text = label
+        ET.SubElement(obj, 'pose').text = 'Unspecified'
+        ET.SubElement(obj, 'truncated').text = '0'
+        ET.SubElement(obj, 'difficult').text = '0'
+        bndbox = ET.SubElement(obj, 'bndbox')
+        ET.SubElement(bndbox, 'xmin').text = str(int(xmin))
+        ET.SubElement(bndbox, 'ymin').text = str(int(ymin))
+        ET.SubElement(bndbox, 'xmax').text = str(int(xmax))
+        ET.SubElement(bndbox, 'ymax').text = str(int(ymax))
+    # 写入 XML 文件
+    xml_str = ET.tostring(root, 'utf-8')
+    reparsed = minidom.parseString(xml_str)
+    pretty_xml_str = reparsed.toprettyxml(indent='    ')
+    with open(xml_path, 'w', encoding='utf-8') as f:
+        f.write(pretty_xml_str)
 
 
 # 检查 COCO 文件是否有问题

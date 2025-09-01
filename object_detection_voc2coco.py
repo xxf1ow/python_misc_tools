@@ -42,7 +42,6 @@ def generate(img_path, det_path):
     for instance, box in bbox_dict.items():
         label = instance[0]
         if label not in categories:
-            print(f'\n{img_path}')
             skip_categories.add(label)
             continue
         label_id = categories.index(label)
