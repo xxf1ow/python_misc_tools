@@ -17,6 +17,7 @@ categories = ['D000', 'D001', 'P000', 'P001']
 
 # 保存数据集中出现的不在允许列表中的标签, 用于最后检查允许列表是否正确
 skip_categories = set()
+skip_files = set()
 
 
 def downsample_list(lst, n):
@@ -42,6 +43,7 @@ def generate(img_path, det_path):
     for instance, box in bbox_dict.items():
         label = instance[0]
         if label not in categories:
+            skip_files.add(img_path)
             skip_categories.add(label)
             continue
         label_id = categories.index(label)
@@ -130,5 +132,6 @@ if __name__ == '__main__':
     process(os.getcwd(), 10)
     # 打印数据集中出现的不被允许的标签
     if len(skip_categories) > 0:
-        print(f'\n\033[1;33m[Warning] 出现但不被允许的标签: \033[0m{skip_categories}')
+        print(f'\n\033[1;33m[Warning] 出现但不被允许的标签: \033[0m{skip_categories}\n')
+        print('\n'.join(sorted(skip_files)))
     print('\nAll process success\n')
