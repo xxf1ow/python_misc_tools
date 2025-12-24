@@ -215,6 +215,7 @@ def parse_labelme(
     img_width,
     img_height,
     allow_shape_type=['circle', 'rectangle', 'line', 'linestrip', 'point', 'polygon', 'rotation'],
+    need_shape_type=False,
 ):
     if not os.path.isfile(seg_path):
         return {}, {}
@@ -235,7 +236,7 @@ def parse_labelme(
         # get instance (唯一实例 flag 值)
         label = shape['label']
         group_id = uuid.uuid1() if shape['group_id'] is None else shape['group_id']
-        instance = (label, group_id)
+        instance = (label, group_id, shape_type) if need_shape_type else (label, group_id)
         # generate mask (如果存在同一 group_id 的 mask , 就合并它们)
         points = shape['points']
         mask = shape_to_mask([img_height, img_width], points, shape_type)

@@ -77,6 +77,66 @@ def sort_rotation_points(points):
     return np.array([beg_tl, beg_br, end_br, end_tl]).reshape(-1).tolist()
 
 
+def sort_polygon_points(points):
+    """scale --> beg_tl, beg_br, end_br, end_tl"""
+
+    # 1. 输入校验与格式转换
+    if len(points) != 8:
+        raise ValueError('输入数组必须正好包含8个元素(4个点的坐标).')
+
+    # 将扁平数组转换为 4x2 的点坐标数组
+    pts = np.array(points, dtype=float).reshape(4, 2)
+
+    # 1. 几何拓扑排序：基于重心角度排序，确保形成凸四边形闭环（逆时针或顺时针）
+    center = np.mean(pts, axis=0)
+    diff = pts - center
+    angles = np.arctan2(diff[:, 1], diff[:, 0])
+    order = np.argsort(angles)
+    pts = pts[order]
+
+    # 2. 寻找短边, 此时 pts 是有序的: 0-1, 1-2, 2-3, 3-0 是四条边
+    def dist_sq(i, j):
+        return np.sum((pts[i] - pts[j]) ** 2)
+
+    d01 = dist_sq(0, 1)
+    d12 = dist_sq(1, 2)
+    d23 = dist_sq(2, 3)
+    d30 = dist_sq(3, 0)
+
+    # 比较两组对边的长度和，短的那一组判定为 scale 的“两头”
+    # 假设 scale 是长条状，那么短边就是首尾
+    if (d01 + d23) < (d12 + d30):
+        # 0-1 和 2-3 是短边 (端点)
+        group1 = np.array([pts[0], pts[1]])
+        group2 = np.array([pts[2], pts[3]])
+    else:
+        # 1-2 和 3-0 是短边 (端点)
+        group1 = np.array([pts[1], pts[2]])
+        group2 = np.array([pts[3], pts[0]])
+
+    # 根据全局坐标系定义判断哪个是 beg/end 组
+    center1 = np.mean(group1, axis=0)
+    center2 = np.mean(group2, axis=0)
+    if (center1[0] - center1[1]) > (center2[0] - center2[1]):
+        end_group, beg_group = group1, group2
+    else:
+        end_group, beg_group = group2, group1
+
+    # 组内排序：tl点x+y更小，br点x+y更大
+    def sort_group(group):
+        sum_coords = np.sum(group, axis=1)
+        if sum_coords[0] < sum_coords[1]:
+            return group[0], group[1]  # tl, br
+        else:
+            return group[1], group[0]  # tl, br
+
+    end_tl, end_br = sort_group(end_group)
+    beg_tl, beg_br = sort_group(beg_group)
+
+    # 返回与输入相同的格式
+    return np.array([beg_tl, beg_br, end_br, end_tl]).reshape(-1).tolist()
+
+
 def rotation_to_skeleton(original, width, height):
     if len(original) != 8:
         raise ValueError('输入列表必须恰好包含 8 个坐标值(4个点)')
@@ -140,19 +200,28 @@ def generate(img_path, det_path, seg_path):
     bbox = parse_labelimg(det_path, width, height)
     bbox = {instance: box for instance, box in bbox.items() if instance[0] == detection_class}
     # parse labelme anns file
-    _, shapes = parse_labelme(seg_path, width, height, ['point', 'rotation'])
+    _, shapes = parse_labelme(seg_path, width, height, ['point', 'rotation', 'polygon'], True)
 
     # convert 'scale' to [beg_tl, beg_br, end_br, end_tl]
     shapes_add = {}
     shapes_remove = []
     for instance, shape in shapes.items():
-        if instance[0] == 'scale':  # scale 是采用旋转框方法的四点标注
+        if instance[0] == 'scale':  # scale 是采用旋转框或多边形方法的四点标注
             shapes_remove.append(instance)
-            pts = rotation_to_skeleton(sort_rotation_points(shape[0]), width, height)
-            shapes_add[('beg_tl', uuid.uuid1())] = [[pts[0], pts[1]]]
-            shapes_add[('beg_br', uuid.uuid1())] = [[pts[2], pts[3]]]
-            shapes_add[('end_br', uuid.uuid1())] = [[pts[4], pts[5]]]
-            shapes_add[('end_tl', uuid.uuid1())] = [[pts[6], pts[7]]]
+            try:
+                if instance[2] == 'rotation':
+                    pts = rotation_to_skeleton(sort_rotation_points(shape[0]), width, height)
+                elif instance[2] == 'polygon':
+                    pts = rotation_to_skeleton(sort_polygon_points(shape[0]), width, height)
+                else:
+                    raise ValueError('错误标签\n')
+            except Exception as e:
+                raise ValueError(f'{e}, {img_path}\n')
+            else:
+                shapes_add[('beg_tl', uuid.uuid1())] = [[pts[0], pts[1]]]
+                shapes_add[('beg_br', uuid.uuid1())] = [[pts[2], pts[3]]]
+                shapes_add[('end_br', uuid.uuid1())] = [[pts[4], pts[5]]]
+                shapes_add[('end_tl', uuid.uuid1())] = [[pts[6], pts[7]]]
         elif instance[0] not in keypoints_class:
             shapes_remove.append(instance)
             print(f'\n\033[1;33m[Warning] 出现但不被允许的标签: \033[0m{instance[0]}, {img_path}\n')
