@@ -18,7 +18,7 @@
 #   python3 tools/export_model.py -c data/${task_name}/${config_name}.yml --output_dir workspace/${config_name}
 
 ### Test inference model
-#   python3 deploy/python/det_keypoint_unite_infer.py --det_model_dir=workspace/inference/scale_det --keypoint_model_dir=workspace/inference/scale_pose --image_file=data/scale/src/baizijian/imgs/0000.jpg --device=GPU
+#   python3 deploy/python/det_keypoint_unite_infer.py --det_model_dir=workspace/scale/scale --keypoint_model_dir=workspace/scale_pose/scale_pose --image_file=data/scale/src/20251223/imgs/0001.jpg --device=GPU
 
 ########################################################################################
 ## dataset root
